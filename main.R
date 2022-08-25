@@ -330,7 +330,7 @@ vdjdb_in_selected <- vdjdb_in_selected %>%
 b2705 = c('PT1', 'PT2', 'PT3', 'PT4', 'PT6', 'PT7', 'PT8', 'PT9', 'PT10', 'PT11', 'PT12', 'PT13', 'PT14', 
           'PT16', 'PT18', 'PT19', 'PT22', 'PT24', 'PT25', 'PT27', 'PT28', 'PT29', 'PT30', 'PT33', 'PT36', 
           'PT37', 'PT38', 'PT39', 'PT42', 'PT43', 'PT45', 'PT46', 'PT47', 'PT48', 'PT50', 'PT51', 'PT52', 
-          'LK', 'LN', 'OB', 'Zbot', 'ZK', 'ZN' )
+          'LK', 'LN', 'OB', 'Sass', 'Zbot', 'ZK', 'ZN' )
 
 b3801 = c("PT17","PT23","PT31","PT34","PT35","PT44","PT49","PT51","S1","S2","MStr","Abr","Evst","Gonch","Kal","Luk","Tsib","Zakh")
 
