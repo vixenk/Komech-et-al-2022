@@ -7,7 +7,7 @@ library(ggbeeswarm)
 library(rstatix)
 library(igraph)
 
-give.n <- function(y){ # adds number of points in a group the plot
+give.n <- function(y){ # adds number of points in a group on the plot
   return(data.frame(
     y = 0,
     label = length(y))) 
@@ -21,7 +21,7 @@ give.n <- function(y){ # adds number of points in a group the plot
 # fraction: - 'F' for total T cells; '4' for CD4+ T cells; '8' for CD8+ T cells
 # timepoint: 'p1' or 'p2' (only for donors with recurrent synovitis)
 #
-# Examples: as_Bel_PB_CD8, psa_Stu_SF_F_p1
+# Examples: as_PT7_PB_CD8, psa_PT39_SF_F_p1
 #
 #
 datalist = parse.folder(.folderpath = 'PATH-TO-MIXCR-EXPORTED-CLONESETS', .format = 'mixcr')
@@ -300,7 +300,7 @@ selected = sh_sf8beta_alice %>%
 # 4. Annotation of clusters with VDJdb----
 vdjdb = read.delim("vdjdb.slim_2021-02-02.txt", header=T)
 vdjdb_in_selected = selected[,1:41] %>% inner_join(vdjdb, 
-                                                   by=c('CDR3.amino.acid.sequence'='cdr3', 'bestVGene'='v.segm'))
+                                                   by=c('CDR3.amino.acid.sequence'='cdr3', 'V.gene'='v.segm'))
 
 vdjdb_in_selected.good <- vdjdb_in_selected %>%
   mutate(mhc.a = str_split_fixed(mhc.a, "[:,]", 2)[,1]) %>%
@@ -318,28 +318,31 @@ vdjdb_in_selected.good <- vdjdb_in_selected %>%
   group_by(CDR3.amino.acid.sequence) %>%
   mutate(n.epitopes = length(unique(antigen.epitope))) %>% 
   filter(n.epitopes == 1) %>%
-  ungroup
+  ungroup %>%
+  filter(vdjdb.score>0)
+
 
 vdjdb_in_selected <- vdjdb_in_selected %>% 
   merge(vdjdb_in_selected.good, by=c('CDR3.amino.acid.sequence', 'antigen.epitope'))
 
 
 # 5. B27 vs B38 enrichment----
-b2705 = c("Abr","Ali","Ash-110","Bal","Bel","Bost","Dv","Evst","Gar","GE","Gonch","Kos",
-"Kzh","Leb","LK","LN","Mart","Mikh","Mor","Non","Nos","OB","Pach","Pon","Sass","Sem","Shep",
-"Shor","Luk","Stu","SZ","TumE","TumV","TwHM","Uv","Vats","Vol","Zakh","Zar","Zbot","ZK","Zlt","ZN")
+b2705 = c('PT1', 'PT2', 'PT3', 'PT4', 'PT6', 'PT7', 'PT8', 'PT9', 'PT10', 'PT11', 'PT12', 'PT13', 'PT14', 
+          'PT16', 'PT18', 'PT19', 'PT22', 'PT24', 'PT25', 'PT27', 'PT28', 'PT29', 'PT30', 'PT33', 'PT36', 
+          'PT37', 'PT38', 'PT39', 'PT42', 'PT43', 'PT45', 'PT46', 'PT47', 'PT48', 'PT50', 'PT51', 'PT52', 
+          'LK', 'LN', 'OB', 'Zbot', 'ZK', 'ZN' )
 
-b3801 = c("Azh","YZh","Eluk","EL","Kal","Lem","MStr","Pet","Rod","Sbkv","Luk","Uma","Vor","Zar")
+b3801 = c("PT17","PT23","PT31","PT34","PT35","PT44","PT49","PT51","S1","S2","MStr","Abr","Evst","Gonch","Kal","Luk","Tsib","Zakh")
 
 selected_clusters_summary = selected %>% 
   select(CDR3.amino.acid.sequence, bestVGene, cluster_id) %>%
   rename(V.gene = bestVGene, cluster = cluster_id) %>%
   left_join(sh_sf_8_beta, by = c("CDR3.amino.acid.sequence", "V.gene" )) %>%
   group_by(cluster) %>% 
-  summarise(across(c(as_Bel_SF_8:psa_Zlt_SF_8_p1), ~sum(.x, na.rm = T))) %>%
+  summarise(across(c(as_PT7_SF_8:psa_PT52_SF_8_p1), ~sum(.x, na.rm = T))) %>%
   select(-contains('Zar')) %>% ## IMPORTANT, removes HLA-B*27+B*38+ patient
   rowwise() %>% 
-  mutate(people = rowSums(across(as_Bel_SF_8:psa_Zlt_SF_8_p1)>0)) %>%
+  mutate(people = rowSums(across(as_PT7_SF_8:psa_PT52_SF_8_p1)>0)) %>%
   ungroup %>%
   mutate(b27pos = rowSums(.[,grep(paste(b2705, collapse = '|'), names(.))]>0),
          b38pos = rowSums(.[,grep(paste(b3801, collapse = '|'), names(.))]>0)) %>%
@@ -347,7 +350,6 @@ selected_clusters_summary = selected %>%
          total_b38pos = length(grep(paste(b3801, collapse = '|'), names(.)))) %>%
   mutate(rest_b27 = total_b27pos-b27pos, 
          rest_b38=total_b38pos-b38pos) %>% 
-  # mutate(n.clonotypes = selected %>% count(cluster_id) %>% select(n)) %>%
   relocate(people:total_b38pos, .after=cluster) %>%
   mutate(cluster = factor(cluster, levels=c(1,10,12,404,4,6,15,16,701)))
 
@@ -378,31 +380,13 @@ plot_selected_clusters_b27_vs_b38 = ggplot(selected_clusters_summary, aes(x=b27p
 
 # 6. Enrichment of clusters in CD8+ SF vs CD8+ PB ----
 
-# selected_clusters_summary_enriched = selected_clusters_summary %>% 
-#   filter(fisher.p.adj<0.05)
-
-# selected_clusters_summary_enriched %>% 
-#   gather(as_Bel_SF_8:psa_Zlt_SF_8_p1, key = 'sample', value = 'proportion', na.rm = F) %>% 
-#   separate(sample, c('status', 'donor','source', 'fraction'), '_') %>% 
-#   filter(proportion>0) %>% 
-#   mutate(b27 = if_else(donor %in% b2705, 'b27', 'NA'),
-#          b38 = if_else(donor %in% b3801, 'b38', 'NA')) %>%
-#   group_by(cluster) %>% 
-#   summarise(b27_as = n_distinct(donor[status=='as' & b27=='b27']),
-#             b27_psa = n_distinct(donor[status=='psa' & b27=='b27']),
-#             b38_as = n_distinct(donor[status=='as' & b38=='b38']),
-#             b38_psa = n_distinct(donor[status=='psa' & b38=='b38']),
-#             other_psa = n_distinct(donor[status=='psa' & b27!='b27' & b38!='b38'])) %>%
-#   mutate(b27_total = b27_as + b27_psa,
-#          b38_total = b38_as + b38_psa)
-
 prop_selected_clusters_summary_enriched_in_pb_8 = sh_pb_8_beta %>% 
   right_join(enriched_clusters_cumulative, by = c('CDR3.amino.acid.sequence', 'V.gene'='bestVGene')) %>%
-  gather(`as_Ash-110_PB_8`:psa_Zlt_PB_8, key = 'sample', value = 'proportion', na.rm = F)
+  gather(`as_PT4_PB_8`:psa_PT52_PB_8, key = 'sample', value = 'proportion', na.rm = F)
 
 prop_selected_clusters_summary_enriched_in_sf_8 = sh_sf_8_beta %>% 
   right_join(enriched_clusters_cumulative, by = c('CDR3.amino.acid.sequence', 'V.gene'='bestVGene')) %>%
-  gather(as_Bel_SF_8:psa_Zlt_SF_8_p1, key = 'sample', value = 'proportion', na.rm = F)
+  gather(as_PT7_SF_8:psa_PT52_SF_8_p1, key = 'sample', value = 'proportion', na.rm = F)
 
 prop_selected_clusters_summary_enriched_pb8_vs_sf8 = rbind(prop_selected_clusters_summary_enriched_in_pb_8, prop_selected_clusters_summary_enriched_in_sf_8) %>%
   separate(sample, c('status', 'donor','source', 'fraction'), '_') %>%
@@ -496,7 +480,10 @@ enriched_clusters_cumulative = sh_sf8beta_alice %>%
   select(CDR3.amino.acid.sequence, bestVGene, bestJGene, cluster) %>%
   filter(!(cluster==6 & bestJGene=='TRBJ2-5'))
 
-selected_clusters_summary_enriched_in_pb_hd = shared.repertoire(c(emerson, healthy_f), .type = 'avrp') %>%
+selected_clusters_summary_enriched_in_pb_hd = shared.repertoire(c(emerson, healthy_f), .type = 'avrp') 
+names(selected_clusters_summary_enriched_in_pb_hd) = c(names(selected_clusters_summary_enriched_in_pb_hd)[1:3],names(c(emerson, healthy_f)))
+
+selected_clusters_summary_enriched_in_pb_hd = selected_clusters_summary_enriched_in_pb_hd %>%
   right_join(enriched_clusters_cumulative, by = c('CDR3.amino.acid.sequence', 'V.gene'='bestVGene')) %>%
   relocate(cluster, .after=V.gene) %>%
   group_by(cluster) %>% 
@@ -511,7 +498,7 @@ selected_clusters_summary_enriched_in_pb_spa = sh_spa_pb_f %>%
   right_join(enriched_clusters_cumulative, by = c('CDR3.amino.acid.sequence', 'V.gene'='bestVGene')) %>%
   relocate(cluster, .after=V.gene) %>%
   group_by(cluster) %>% 
-  summarise(across(as_Abd_PB_F:psa_Uma_PB_F, ~sum(.x, na.rm=T))) %>%
+  summarise(across(as_PT1_PB_F:psa_PT44_PB_F, ~sum(.x, na.rm=T))) %>%
   mutate(b27pos = rowSums(.[,grep(paste(c(emerson_b27, b2705), collapse = '|'), names(.))]>0),
          b38pos = rowSums(.[,grep(paste(c(emerson_b38, b3801),collapse = '|'), names(.))]>0),
          total_b27pos = length(grep(paste(c(emerson_b27, b2705), collapse = '|'), names(.))),
@@ -588,14 +575,14 @@ plot_summary_clusters = annotate_figure(plot_summary_clusters,
 # 8. Proportion of clusrers in total PB repertoires of SpA patients and healthy donors----
 prop_selected_clusters_summary_enriched_in_pb_f_b27 = selected_clusters_summary_enriched_in_pb_spa[,-c(2:5)] %>% 
   full_join(selected_clusters_summary_enriched_in_pb_hd[,-c(2:5)], by = 'cluster') %>%
-  gather(key = 'sample', value = 'cum_prop', as_Abd_PB_F:b27_ZN_PB_F) %>%
+  gather(key = 'sample', value = 'cum_prop', as_PT1_PB_F:h_ZN_PB_F) %>%
   filter(grepl(paste(c(b2705, emerson_b27), collapse = '|'), sample)) %>%
   mutate(status = if_else(sample %in% grep('^as_|^psa_', sample, value = T),'SpA', 'HD')) %>%
   mutate(cluster = factor(cluster, levels = c(1,10,12,404,4,6,15,16,701)))
 
 prop_selected_clusters_summary_enriched_in_pb_f_b38 = selected_clusters_summary_enriched_in_pb_spa[,-c(2:5)] %>% 
   full_join(selected_clusters_summary_enriched_in_pb_hd[,-c(2:5)], by = 'cluster') %>%
-  gather(key = 'sample', value = 'cum_prop', as_Abd_PB_F:b27_ZN_PB_F) %>%
+  gather(key = 'sample', value = 'cum_prop', as_PT1_PB_F:h_ZN_PB_F) %>%
   filter(grepl(paste(c(b3801, emerson_b38), collapse = '|'), sample)) %>%
   mutate(status = if_else(sample %in% grep('^as_|^psa_', sample, value = T),'SpA', 'HD')) %>%
   mutate(cluster = factor(cluster, levels = c(1,10,12,404,4,6,15,16,701)))
@@ -833,7 +820,7 @@ sf8alpha = lapply(sf8alpha, function(x) {names(x)[grep('V.gene$', names(x))]='be
 sf8alpha = lapply(sf8alpha, function(x) {names(x)[grep('J.gene$', names(x))]='bestJGene';x})
 
 sf8alpha_alice<-ALICE_pipeline_alpha(DTlist=sf8alpha,folder="sf_cd8_a/",cores=7,iter=25,nrec=5e6, 
-                                            Read_count_filter = 0)
+                                     Read_count_filter = 0)
 sf8alpha_alice = lapply(sf8alpha_alice, function(x) x= as.data.frame(x))
 sh_sf8alpha_alice = shared.repertoire(sf8alpha_alice, .by.col = c('CDR3.amino.acid.sequence', 'bestVGene', 'bestJGene'), .sum.col = 'Read.count')
 
